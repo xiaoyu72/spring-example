@@ -310,3 +310,261 @@
 
 在oauth2.1中被移除
 
+# 配置
+
+## 默认配置
+
+之前已经通过最小配置，完成了一个`Spring Authorization Server`项目，本章学习下关于配置的内容。
+
+`Spring Authorization Server`还提供了一种实现最小配置的默认配置形式。就是通过`OAuth2AuthorizationServerConfiguration`这个类。
+
+看下这个类的源码：
+
+```java
+/*
+ * Copyright 2020-2021 the original author or authors.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.springframework.security.config.annotation.web.configuration;
+
+import java.util.HashSet;
+import java.util.Set;
+
+import com.nimbusds.jose.JWSAlgorithm;
+import com.nimbusds.jose.jwk.source.JWKSource;
+import com.nimbusds.jose.proc.JWSKeySelector;
+import com.nimbusds.jose.proc.JWSVerificationKeySelector;
+import com.nimbusds.jose.proc.SecurityContext;
+import com.nimbusds.jwt.proc.ConfigurableJWTProcessor;
+import com.nimbusds.jwt.proc.DefaultJWTProcessor;
+
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.core.Ordered;
+import org.springframework.core.annotation.Order;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configurers.oauth2.server.authorization.OAuth2AuthorizationServerConfigurer;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
+import org.springframework.security.oauth2.server.authorization.config.ProviderSettings;
+import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.util.matcher.RequestMatcher;
+
+/**
+ * {@link Configuration} for OAuth 2.0 Authorization Server support.
+ *
+ * @author Joe Grandja
+ * @since 0.0.1
+ * @see OAuth2AuthorizationServerConfigurer
+ */
+@Configuration(proxyBeanMethods = false)
+public class OAuth2AuthorizationServerConfiguration {
+
+	@Bean
+	@Order(Ordered.HIGHEST_PRECEDENCE)
+	public SecurityFilterChain authorizationServerSecurityFilterChain(HttpSecurity http) throws Exception {
+		applyDefaultSecurity(http);
+		return http.build();
+	}
+
+	// @formatter:off
+	public static void applyDefaultSecurity(HttpSecurity http) throws Exception {
+		OAuth2AuthorizationServerConfigurer<HttpSecurity> authorizationServerConfigurer =
+				new OAuth2AuthorizationServerConfigurer<>();
+		RequestMatcher endpointsMatcher = authorizationServerConfigurer
+				.getEndpointsMatcher();
+
+		http
+			.requestMatcher(endpointsMatcher)
+			.authorizeRequests(authorizeRequests ->
+				authorizeRequests.anyRequest().authenticated()
+			)
+			.csrf(csrf -> csrf.ignoringRequestMatchers(endpointsMatcher))
+			.apply(authorizationServerConfigurer);
+	}
+	// @formatter:on
+
+	public static JwtDecoder jwtDecoder(JWKSource<SecurityContext> jwkSource) {
+		Set<JWSAlgorithm> jwsAlgs = new HashSet<>();
+		jwsAlgs.addAll(JWSAlgorithm.Family.RSA);
+		jwsAlgs.addAll(JWSAlgorithm.Family.EC);
+		jwsAlgs.addAll(JWSAlgorithm.Family.HMAC_SHA);
+		ConfigurableJWTProcessor<SecurityContext> jwtProcessor = new DefaultJWTProcessor<>();
+		JWSKeySelector<SecurityContext> jwsKeySelector =
+				new JWSVerificationKeySelector<>(jwsAlgs, jwkSource);
+		jwtProcessor.setJWSKeySelector(jwsKeySelector);
+		// Override the default Nimbus claims set verifier as NimbusJwtDecoder handles it instead
+		jwtProcessor.setJWTClaimsSetVerifier((claims, context) -> {
+		});
+		return new NimbusJwtDecoder(jwtProcessor);
+	}
+
+	@Bean
+	RegisterMissingBeanPostProcessor registerMissingBeanPostProcessor() {
+		RegisterMissingBeanPostProcessor postProcessor = new RegisterMissingBeanPostProcessor();
+		postProcessor.addBeanDefinition(ProviderSettings.class, () -> ProviderSettings.builder().build());
+		return postProcessor;
+	}
+}
+```
+
+这里注入一个叫做`authorizationServerSecurityFilterChain`的bean，这跟我之前最小化项目时实现的基本是相同的。
+
+有了这个bean，就会支持如下协议端点：
+
+- [OAuth2 Authorization endpoint](https://docs.spring.io/spring-authorization-server/docs/current/reference/html/protocol-endpoints.html#oauth2-authorization-endpoint)
+- [OAuth2 Token endpoint](https://docs.spring.io/spring-authorization-server/docs/current/reference/html/protocol-endpoints.html#oauth2-token-endpoint)
+- [OAuth2 Token Introspection endpoint](https://docs.spring.io/spring-authorization-server/docs/current/reference/html/protocol-endpoints.html#oauth2-token-introspection-endpoint)
+- [OAuth2 Token Revocation endpoint](https://docs.spring.io/spring-authorization-server/docs/current/reference/html/protocol-endpoints.html#oauth2-token-revocation-endpoint)
+- [OAuth2 Authorization Server Metadata endpoint](https://docs.spring.io/spring-authorization-server/docs/current/reference/html/protocol-endpoints.html#oauth2-authorization-server-metadata-endpoint)
+- [JWK Set endpoint](https://docs.spring.io/spring-authorization-server/docs/current/reference/html/protocol-endpoints.html#jwk-set-endpoint)
+- [OpenID Connect 1.0 Provider Configuration endpoint](https://docs.spring.io/spring-authorization-server/docs/current/reference/html/protocol-endpoints.html#oidc-provider-configuration-endpoint)
+- [OpenID Connect 1.0 UserInfo endpoint](https://docs.spring.io/spring-authorization-server/docs/current/reference/html/protocol-endpoints.html#oidc-user-info-endpoint)
+
+接来我我尝试使用`OAuth2AuthorizationServerConfiguration`这个类来实现一个`Authorization Server`。
+
+> 本次我会将 Spring Security和Authorization Server的配置分开
+
+Spring Security 使用 `SecurityConfig` 类，创建一个新的`Authorization Server`配置类 `AuthorizationServerConfig`。
+
+`SecurityConfig`类配置如下：
+
+```java
+@Configuration
+@EnableWebSecurity
+public class SecurityConfig {
+    /**
+     * 这个也是个Spring Security的过滤器链，用于Spring Security的身份认证。
+     *
+     * @param http
+     * @return
+     * @throws Exception
+     */
+    @Bean
+    @Order(2)
+    public SecurityFilterChain defaultSecurityFilterChain(HttpSecurity http)
+            throws Exception {
+        http
+                .authorizeHttpRequests((authorize) -> authorize
+                        .anyRequest().authenticated()
+                )
+                // Form login handles the redirect to the login page from the
+                // authorization server filter chain
+                .formLogin(Customizer.withDefaults());
+
+        return http.build();
+    }
+
+    /**
+     * 配置用户信息，或者配置用户数据来源，主要用于用户的检索。
+     *
+     * @return
+     */
+    @Bean
+    public UserDetailsService userDetailsService() {
+        UserDetails userDetails = User.withDefaultPasswordEncoder()
+                .username("user")
+                .password("password")
+                .roles("USER")
+                .build();
+
+        return new InMemoryUserDetailsManager(userDetails);
+    }
+}
+```
+
+代码如下：
+
+```java
+@Configuration
+@Import(OAuth2AuthorizationServerConfiguration.class)
+public class AuthorizationServerConfig {
+
+    /**
+     * oauth2 用于第三方认证，RegisteredClientRepository 主要用于管理第三方（每个第三方就是一个客户端）
+     *
+     * @return
+     */
+    @Bean
+    public RegisteredClientRepository registeredClientRepository() {
+        RegisteredClient registeredClient = RegisteredClient.withId(UUID.randomUUID().toString())
+                .clientId("messaging-client")
+                .clientSecret("{noop}secret")
+                .clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_BASIC)
+                .authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
+                .authorizationGrantType(AuthorizationGrantType.REFRESH_TOKEN)
+                .authorizationGrantType(AuthorizationGrantType.CLIENT_CREDENTIALS)
+                .redirectUri("http://127.0.0.1:8080/login/oauth2/code/messaging-client-oidc")
+                .redirectUri("http://127.0.0.1:8080/authorized")
+                .scope(OidcScopes.OPENID)
+                .scope("message.read")
+                .scope("message.write")
+                .clientSettings(ClientSettings.builder().requireAuthorizationConsent(true).build())
+                .build();
+
+        return new InMemoryRegisteredClientRepository(registeredClient);
+    }
+
+    /**
+     * 用于给access_token签名使用。
+     *
+     * @return
+     */
+    @Bean
+    public JWKSource<SecurityContext> jwkSource() {
+        KeyPair keyPair = generateRsaKey();
+        RSAPublicKey publicKey = (RSAPublicKey) keyPair.getPublic();
+        RSAPrivateKey privateKey = (RSAPrivateKey) keyPair.getPrivate();
+        RSAKey rsaKey = new RSAKey.Builder(publicKey)
+                .privateKey(privateKey)
+                .keyID(UUID.randomUUID().toString())
+                .build();
+        JWKSet jwkSet = new JWKSet(rsaKey);
+        return new ImmutableJWKSet<>(jwkSet);
+    }
+
+    /**
+     * 生成秘钥对，为jwkSource提供服务。
+     *
+     * @return
+     */
+    private static KeyPair generateRsaKey() {
+        KeyPair keyPair;
+        try {
+            KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance("RSA");
+            keyPairGenerator.initialize(2048);
+            keyPair = keyPairGenerator.generateKeyPair();
+        } catch (Exception ex) {
+            throw new IllegalStateException(ex);
+        }
+        return keyPair;
+    }
+}
+```
+
+至此可以实现了`Authorization Server`。
+
+## 测试客户端模式
+
+![客户端模式调用](./assets/image-20221024164720507.png)
+
+## 测试授权码模式
+
+[点击访问](http://127.0.0.1:8080/oauth2/authorize?response_type=code&client_id=messaging-client&scope=message.read&redirect_uri=http://127.0.0.1:8080/authorized)
+
+![授权码模式](./assets/image-20221024165012833.png)
+
+![获取Code](./assets/image-20221024165052652.png)
+
+![授权码模式获取Token](./assets/image-20221024165217382.png)
