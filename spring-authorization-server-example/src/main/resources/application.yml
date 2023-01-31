@@ -1,3 +1,10 @@
+spring:
+  datasource:
+    type: com.zaxxer.hikari.HikariDataSource
+    url: jdbc:mysql://192.168.38.150:3306/spring-authorization-server-example
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    username: root
+    password: root
 
 logging:
   level:

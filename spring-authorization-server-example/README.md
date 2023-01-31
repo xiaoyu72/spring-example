@@ -568,3 +568,241 @@ public class AuthorizationServerConfig {
 ![获取Code](./assets/image-20221024165052652.png)
 
 ![授权码模式获取Token](./assets/image-20221024165217382.png)
+
+# 存储配置
+
+`Spring Authorization Server`默认是支持内存和JDBC两种存储模式的，内存模式只适合开发和简单的测试。接下来我们来实现JDBC存储方式。
+
+修改步骤如下：
+
+1. 引入JDBC相关依赖。
+2. 创建数据库并初始化表，以及在`application.yaml`文件中配置数据库连接。
+3. 修改`Spring Security`和`Spring authorization Server`的配置。
+4. 初始化表数据
+5. 测试服务
+
+接下来我依次实现。
+
+## 引入JDBC相关依赖
+
+```xml
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-jdbc</artifactId>
+</dependency>
+
+<dependency>
+    <groupId>mysql</groupId>
+    <artifactId>mysql-connector-java</artifactId>
+</dependency>
+```
+
+## 初始化表
+
+创建数据库并初始化表，以及在`application.yaml`文件中配置数据库连接。
+
+1. `oauth2_authorization_consent`
+2. `oauth2_authorization`
+3. `oauth2_registered_client`
+4. `users`
+5. `authorities`
+
+```mysql
+CREATE TABLE oauth2_authorization (
+    id varchar(100) NOT NULL,
+    registered_client_id varchar(100) NOT NULL,
+    principal_name varchar(200) NOT NULL,
+    authorization_grant_type varchar(100) NOT NULL,
+    attributes blob DEFAULT NULL,
+    state varchar(500) DEFAULT NULL,
+    authorization_code_value blob DEFAULT NULL,
+    authorization_code_issued_at timestamp DEFAULT NULL,
+    authorization_code_expires_at timestamp DEFAULT NULL,
+    authorization_code_metadata blob DEFAULT NULL,
+    access_token_value blob DEFAULT NULL,
+    access_token_issued_at timestamp DEFAULT NULL,
+    access_token_expires_at timestamp DEFAULT NULL,
+    access_token_metadata blob DEFAULT NULL,
+    access_token_type varchar(100) DEFAULT NULL,
+    access_token_scopes varchar(1000) DEFAULT NULL,
+    oidc_id_token_value blob DEFAULT NULL,
+    oidc_id_token_issued_at timestamp DEFAULT NULL,
+    oidc_id_token_expires_at timestamp DEFAULT NULL,
+    oidc_id_token_metadata blob DEFAULT NULL,
+    refresh_token_value blob DEFAULT NULL,
+    refresh_token_issued_at timestamp DEFAULT NULL,
+    refresh_token_expires_at timestamp DEFAULT NULL,
+    refresh_token_metadata blob DEFAULT NULL,
+    PRIMARY KEY (id)
+);
+
+CREATE TABLE oauth2_authorization_consent (
+    registered_client_id varchar(100) NOT NULL,
+    principal_name varchar(200) NOT NULL,
+    authorities varchar(1000) NOT NULL,
+    PRIMARY KEY (registered_client_id, principal_name)
+);
+
+CREATE TABLE oauth2_registered_client (
+    id varchar(100) NOT NULL,
+    client_id varchar(100) NOT NULL,
+    client_id_issued_at timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    client_secret varchar(200) DEFAULT NULL,
+    client_secret_expires_at timestamp DEFAULT NULL,
+    client_name varchar(200) NOT NULL,
+    client_authentication_methods varchar(1000) NOT NULL,
+    authorization_grant_types varchar(1000) NOT NULL,
+    redirect_uris varchar(1000) DEFAULT NULL,
+    scopes varchar(1000) NOT NULL,
+    client_settings varchar(2000) NOT NULL,
+    token_settings varchar(2000) NOT NULL,
+    PRIMARY KEY (id)
+);
+
+CREATE TABLE users ( 
+	username varchar( 50 ) NOT NULL PRIMARY KEY, 
+	PASSWORD varchar( 500 ) NOT NULL, 
+	enabled boolean NOT NULL 
+);
+
+CREATE TABLE authorities (
+	username VARCHAR ( 50 ) NOT NULL,
+	authority VARCHAR ( 50 ) NOT NULL,
+	CONSTRAINT ix_auth_username UNIQUE ( username, authority ),
+	CONSTRAINT fk_authorities_users FOREIGN KEY ( username ) REFERENCES users ( username ) 
+);
+```
+
+初始化表，建表语句在哪里？
+
+`Spring Security`的建表语句在
+
+```text
+org/springframework/security/core/userdetails/jdbc/users.ddl
+```
+
+`Spring authorization Server`的建表文件在：
+
+```text
+org/springframework/security/oauth2/server/authorization/oauth2-authorization-consent-schema.sql
+
+org/springframework/security/oauth2/server/authorization/oauth2-authorization-schema.sql
+
+org/springframework/security/oauth2/server/authorization/client/oauth2-registered-client-schema.sql
+```
+
+都在jar包中，并且sql可能会有问题，请大家根据自己使用的数据库进行修改。
+
+## 修改`yml`数据库连接信息
+
+```yml
+spring:
+  datasource:
+    type: com.zaxxer.hikari.HikariDataSource
+    url: jdbc:mysql://192.168.38.150:3306/spring-authorization-server-example
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    username: root
+    password: root
+```
+
+请根据自己的情况进行修改。
+
+## 修改配置信息
+
+1. 修改`SecurityConfig`中的`UserDetailsService`bean。
+
+   ```java
+   	@Autowired
+       private DataSource dataSource;
+   
+       @Bean
+       public UserDetailsService userDetailsService() {
+           return new JdbcUserDetailsManager(dataSource);
+       }
+   ```
+
+2. `Spring Authorization Server`有三张表，对应的bean也要修改三处
+
+   ```mysql
+        @Autowired
+       JdbcTemplate jdbcTemplate;
+       
+       @Bean
+       public RegisteredClientRepository registeredClientRepository() {
+           return new JdbcRegisteredClientRepository(jdbcTemplate);
+       }
+   
+       @Bean
+       public OAuth2AuthorizationService authorizationService() {
+           return new JdbcOAuth2AuthorizationService(jdbcTemplate, registeredClientRepository());
+       }
+   
+       @Bean
+       public OAuth2AuthorizationConsentService authorizationConsentService() {
+           return new JdbcOAuth2AuthorizationConsentService(jdbcTemplate, registeredClientRepository());
+       }
+   ```
+
+   上述三个类对应`Spring Authorization Server`的三个表。
+
+## 初始化表数据
+
+需要初始化三张表数据，分别是`users`,`authorities`, `oauth2_registered_client`
+
+`users`,`authorities`需要通过`UserDetailsManager`类来实现，我暂时使用`junit Test`来实现。
+
+```java
+@SpringBootTest
+class SpringAuthorizationServerExampleApplicationTests {
+
+	/**
+	 * 初始化客户端信息
+	 */
+	@Autowired
+	private UserDetailsManager userDetailsManager;
+
+	/**
+	 * 创建用户信息
+	 */
+	@Test
+	void testSaveUser() {
+		UserDetails userDetails = User.builder().passwordEncoder(s -> "{bcrypt}" + new BCryptPasswordEncoder().encode(s))
+				.username("user")
+				.password("password")
+				.roles("ADMIN")
+				.build();
+		userDetailsManager.createUser(userDetails);
+	}
+}
+```
+
+执行完毕后两个表的记录如下：
+
+users：
+
+| username | password                                                     | enabled |
+| -------- | ------------------------------------------------------------ | ------- |
+| `user`   | `{bcrypt}$2a$10$04v8GwjJLvol8g17v2Kse.ddR12/jTv8AvQRoxgXSaQyDfc5L.Zme` | `1`     |
+
+authories:
+
+| username | authority    |
+| -------- | ------------ |
+| `user`   | `ROLE_ADMIN` |
+
+创建client信息
+
+创建完成后，`oauth2_registered_client`表中的记录如下：
+
+| id                                     | client_id          | client_id_issued_at   | client_secret                                                | client_secret_expires_at | client_name                            | client_authentication_methods | authorization_grant_types                             | redirect_uris                                                | scopes                              | client_settings                                              | token_settings                                               |
+| -------------------------------------- | ------------------ | --------------------- | ------------------------------------------------------------ | ------------------------ | -------------------------------------- | ----------------------------- | ----------------------------------------------------- | ------------------------------------------------------------ | ----------------------------------- | ------------------------------------------------------------ | ------------------------------------------------------------ |
+| `d526a138-66db-4c78-a286-e4b06b72d545` | `messaging-client` | `2022-10-24 18:09:43` | `{bcrypt}$2a$10$pYE0J8T4j0ZLGiQiFhUqMeNCFvPqy/flRnYg2oyyd1puypRun3t.a` |                          | `d526a138-66db-4c78-a286-e4b06b72d545` | `client_secret_basic`         | `refresh_token,client_credentials,authorization_code` | [http://127.0.0.1:8080/authorized](http://127.0.0.1:8080/authorized),[http://127.0.0.1:8080/login/oauth2/code/messaging-client-oidc](http://127.0.0.1:8080/login/oauth2/code/messaging-client-oidc) | `openid,message.read,message.write` | `{"@class":"java.util.Collections$UnmodifiableMap","settings.client.require-proof-key":false,"settings.client.require-authorization-consent":true}` | `{"@class":"java.util.Collections$UnmodifiableMap","settings.token.reuse-refresh-tokens":true,"settings.token.id-token-signature-algorithm":["org.springframework.security.oauth2.jose.jws.SignatureAlgorithm","RS256"],"settings.token.access-token-time-to-live":["java.time.Duration",300.000000000],"settings.token.access-token-format":{"@class":"org.springframework.security.oauth2.core.OAuth2TokenFormat","value":"self-contained"},"settings.token.refresh-token-time-to-live":["java.time.Duration",3600.000000000]}` |
+
+## 测试
+
+###  授权码模式
+
+[点击访问](http://127.0.0.1:8080/oauth2/authorize?response_type=code&client_id=messaging-client&scope=message.read&redirect_uri=http://127.0.0.1:8080/authorized)
+
+输入用户名密码（`user`, `password`）后，**勾选scope**，确认后，通过**地址栏**能获得**code**。
+
