@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd">
+
+
+    <!-- 1、获取Bean演示，User对象创建 -->
+    <bean id="user" class="com.xiao.spring6.iocxml.User"></bean>
+    <bean id="userOne" class="com.xiao.spring6.iocxml.User"></bean>
+    <bean id="userTwo" class="com.xiao.spring6.iocxml.User"></bean>
+
+    <!-- 2、一个接口实现类获取过程 -->
+    <bean id="userDaoImpl" class="com.xiao.spring6.iocxml.bean.UserDaoImpl"></bean>
+
+    <bean id="bookOne" class="com.xiao.spring6.iocxml.di.Book">
+        <!-- property标签：通过组件类的setXxx()方法给组件对象设置属性 -->
+        <!-- name属性：指定属性名（这个属性名是getXxx()、setXxx()方法定义的，和成员变量无关） -->
+        <!-- value属性：指定属性值 -->
+        <property name="name" value="武动乾坤"></property>
+        <property name="author" value="天蚕土豆"></property>
+    </bean>
+
+    <bean id="bookTwo" class="com.xiao.spring6.iocxml.di.Book">
+        <constructor-arg name="name" value="斗罗大陆"></constructor-arg>
+        <constructor-arg name="author" value="唐家三少"></constructor-arg>
+    </bean>
+</beans>

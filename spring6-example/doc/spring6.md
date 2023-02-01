@@ -220,7 +220,7 @@ public class User {
        xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd">
 
     <!--
-        配置HelloWorld所对应的bean，即将HelloWorld的对象交给Spring的IOC容器管理
+        配置User所对应的bean，即将User的对象交给Spring的IOC容器管理
         通过bean标签配置IOC容器所管理的bean
         属性：
             id：设置bean的唯一标识
@@ -233,20 +233,21 @@ public class User {
 #### 2.3.4、创建测试类测试
 
 ```java
-package com.atguigu.spring6.bean;
-
-import org.junit.jupiter.api.Test;
-import org.springframework.context.ApplicationContext;
-import org.springframework.context.support.ClassPathXmlApplicationContext;
-
-public class HelloWorldTest {
+public class TestUser {
 
     @Test
-    public void testHelloWorld(){
-        ApplicationContext ac = new ClassPathXmlApplicationContext("beans.xml");
-        HelloWorld helloworld = (HelloWorld) ac.getBean("helloWorld");
-        helloworld.sayHello();
+    public void testUserObject(){
+        // 加载Spring配置文件，对象创建
+        ApplicationContext context = new ClassPathXmlApplicationContext("spring-bean.xml");
+
+        // 获取创建的对象
+        User user = (User) context.getBean("user");
+        System.out.println(user);
+
+        // 使用对象调用方法进行测试
+        user.add();
     }
+
 }
 ```
 
@@ -263,23 +264,22 @@ public class HelloWorldTest {
 修改HelloWorld类：
 
 ```java
-package com.atguigu.spring6.bean;
+public class User {
 
-public class HelloWorld {
-
-    public HelloWorld() {
-        System.out.println("无参数构造方法执行");
+    public User() {
+        System.out.println("0：无参构造执行了");
     }
 
-    public void sayHello(){
-        System.out.println("helloworld");
+    public void add(){
+        System.out.println("add 。。。。");
     }
+
 }
 ```
 
 执行结果：
 
-![image-20221031181430720](images/spring6/image-20221031181430720.png)
+![](https://file.xiaoyu72.com/default-minio-storage/2023/1/20230131114757.png)
 
 **测试得知：创建对象时确实调用了无参数构造方法。**
 
@@ -288,11 +288,12 @@ public class HelloWorld {
 **2. Spring是如何创建对象的呢？原理是什么？**
 
 ```java
-// dom4j解析beans.xml文件，从中获取class属性值，类的全类名
- // 通过反射机制调用无参数构造方法创建对象
- Class clazz = Class.forName("com.atguigu.spring6.bean.HelloWorld");
- //Object obj = clazz.newInstance();
- Object object = clazz.getDeclaredConstructor().newInstance();
+		// dom4j解析beans.xml文件，从中获取class属性值，类的全类名
+        // 通过反射机制调用无参数构造方法创建对象
+        Class clazz = Class.forName("com.xiao.spring6.User");
+        //Object obj = clazz.newInstance();
+        User user = (User) clazz.getDeclaredConstructor().newInstance();
+        System.out.println(user);
 ```
 
 
@@ -387,7 +388,7 @@ Map<String,BeanDefinition> , 其中 String是Key , 默认是类名首字母小�
         </console>
 
         <!--文件会打印出所有信息，这个log每次运行程序会自动清空，由append属性决定，适合临时测试用-->
-        <File name="log" fileName="d:/spring6_log/test.log" append="false">
+        <File name="log" fileName="spring6_log/test.log" append="false">
             <PatternLayout pattern="%d{HH:mm:ss.SSS} %-5level %class{36} %L %M - %msg%xEx%n"/>
         </File>
 
@@ -395,7 +396,7 @@ Map<String,BeanDefinition> , 其中 String是Key , 默认是类名首字母小�
             每次大小超过size，
             则这size大小的日志会自动存入按年份-月份建立的文件夹下面并进行压缩，
             作为存档-->
-        <RollingFile name="RollingFile" fileName="d:/spring6_log/app.log"
+        <RollingFile name="RollingFile" fileName="spring6_log/app.log"
                      filePattern="log/$${date:yyyy-MM}/app-%d{MM-dd-yyyy}-%i.log.gz">
             <PatternLayout pattern="%d{yyyy-MM-dd 'at' HH:mm:ss z} %-5level %class{36} %L %M - %msg%xEx%n"/>
             <SizeBasedTriggeringPolicy size="50MB"/>
@@ -422,23 +423,31 @@ Map<String,BeanDefinition> , 其中 String是Key , 默认是类名首字母小�
 #### 2.5.5、使用日志
 
 ```java
-public class HelloWorldTest {
+public class TestUser {
 
-    private Logger logger = LoggerFactory.getLogger(HelloWorldTest.class);
+    private Logger logger = LoggerFactory.getLogger(TestUser.class);
 
     @Test
-    public void testHelloWorld(){
-        ApplicationContext ac = new ClassPathXmlApplicationContext("beans.xml");
-        HelloWorld helloworld = (HelloWorld) ac.getBean("helloWorld");
-        helloworld.sayHello();
-        logger.info("执行成功");
+    public void testUserObject(){
+        // 加载Spring配置文件，对象创建
+        ApplicationContext context = new ClassPathXmlApplicationContext("spring-bean.xml");
+
+        // 获取创建的对象
+        User user = (User) context.getBean("user");
+        System.out.println(user);
+
+        // 使用对象调用方法进行测试
+        user.add();
+
+        // 手动写入日志
+        logger.info("======执行调用结束======");
     }
-}
+}    
 ```
 
 控制台：
 
-![image-20221031214547501](images/spring6/image-20221031214547501.png)
+![](https://file.xiaoyu72.com/default-minio-storage/2023/1/20230131231103.png)
 
 
 
@@ -446,7 +455,7 @@ public class HelloWorldTest {
 
 IoC 是 Inversion of Control 的简写，译为“控制反转”，它不是一门技术，而是一种设计思想，是一个重要的面向对象编程法则，能够指导我们如何设计出松耦合、更优良的程序。
 
-Spring 通过 IoC 容器来管理所有 Java 对象的实例化和初始化，控制对象与对象之间的依赖关系。我们将由 IoC 容器管理的 Java 对象称为 Spring Bean，它与使用关键字 new 创建的 Java 对象没有任何区别。
+Spring 通过 **IoC 容器**来管理**所有 Java 对象的实例化和初始化**，**控制对象与对象之间的依赖关系**。我们将由 IoC 容器管理的 Java 对象称为 **Spring Bean**，它与使用关键字 new 创建的 Java 对象没有任何区别。
 
 IoC 容器是 Spring 框架中最重要的核心组件之一，它贯穿了 Spring 从诞生到成长的整个过程。
 
@@ -457,13 +466,12 @@ IoC 容器是 Spring 框架中最重要的核心组件之一，它贯穿了 Spri
 - 控制反转是一种思想。
 - 控制反转是为了降低程序耦合度，提高程序扩展力。
 - 控制反转，反转的是什么？
-
-- - 将对象的创建权利交出去，交给第三方容器负责。
+  - 将对象的创建权利交出去，交给第三方容器负责。
   - 将对象和对象之间关系的维护权交出去，交给第三方容器负责。
 
 - 控制反转这种思想如何实现呢？
+  - DI（Dependency Injection）：依赖注入
 
-- - DI（Dependency Injection）：依赖注入
 
 #### 3.1.2、依赖注入
 
@@ -496,7 +504,7 @@ BeanFactory 的子接口，提供了更多高级特性。面向 Spring 的使用
 
 **③ApplicationContext的主要实现类**
 
-![iamges](images/spring6/img005.png)
+![](https://file.xiaoyu72.com/default-minio-storage/2023/1/20230131232802.png)
 
 | 类型名                          | 简介                                                         |
 | ------------------------------- | ------------------------------------------------------------ |
@@ -557,37 +565,33 @@ BeanFactory 的子接口，提供了更多高级特性。面向 Spring 的使用
 引入spring-first模块java及test目录下实体类
 
 ```java
-package com.atguigu.spring6.bean;
+public class User {
 
-public class HelloWorld {
+    private String name;
+    private Integer age;
 
-    public HelloWorld() {
-        System.out.println("无参数构造方法执行");
-    }
-
-    public void sayHello(){
-        System.out.println("helloworld");
+    private void run(){
+        System.out.println("run ......");
     }
 }
-
 ```
 
 ```java
-package com.atguigu.spring6.bean;
+public class TestUser {
 
-import org.junit.jupiter.api.Test;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.context.ApplicationContext;
-import org.springframework.context.support.ClassPathXmlApplicationContext;
+    private Logger logger = LoggerFactory.getLogger(TestUser.class);
 
-public class HelloWorldTest {
+    private ApplicationContext context;
 
-    private Logger logger = LoggerFactory.getLogger(HelloWorldTest.class);
+    @BeforeEach
+    void initApplicationContext() {
+        context = new ClassPathXmlApplicationContext("spring-bean.xml");
+
+    }
 
     @Test
-    public void testHelloWorld(){
-        
+    void testGetBeanObjectById() {
+       
     }
 }
 ```
@@ -600,14 +604,21 @@ public class HelloWorldTest {
 
 由于 id 属性指定了 bean 的唯一标识，所以根据 bean 标签的 id 属性可以精确获取到一个组件对象。上个实验中我们使用的就是这种方式。
 
+```java
+@Test
+void testGetBeanObjectById() {
+    User user = (User) context.getBean("user");
+    System.out.println("根据ID获取Bean: " + user);
+}
+```
+
 ##### ②方式二：根据类型获取
 
 ```java
 @Test
-public void testHelloWorld1(){
-	ApplicationContext ac = new ClassPathXmlApplicationContext("beans.xml");
-    HelloWorld bean = ac.getBean(HelloWorld.class);
-    bean.sayHello();
+void testGetBeanObjectByType() {
+    User user = context.getBean(User.class);
+    System.out.println("根据类型获取Bean: " + user);
 }
 ```
 
@@ -615,10 +626,9 @@ public void testHelloWorld1(){
 
 ```java
 @Test
-public void testHelloWorld2(){
-	ApplicationContext ac = new ClassPathXmlApplicationContext("beans.xml");
-    HelloWorld bean = ac.getBean("helloworld", HelloWorld.class);
-    bean.sayHello();
+void testGetBeanObjectByIdAndType() {
+    User user = context.getBean("user", User.class);
+    System.out.println("根据ID和类型获取Bean: " + user);
 }
 ```
 
@@ -629,13 +639,13 @@ public void testHelloWorld2(){
 当IOC容器中一共配置了两个：
 
 ```xml
-<bean id="helloworldOne" class="com.atguigu.spring6.bean.HelloWorld"></bean>
-<bean id="helloworldTwo" class="com.atguigu.spring6.bean.HelloWorld"></bean>
+    <bean id="userOne" class="com.xiao.spring6.iocxml.User"></bean>
+    <bean id="userTwo" class="com.xiao.spring6.iocxml.User"></bean>
 ```
 
 根据类型获取时会抛出异常：
 
-> org.springframework.beans.factory.NoUniqueBeanDefinitionException: No qualifying bean of type 'com.atguigu.spring6.bean.HelloWorld' available: expected single matching bean but found 2: helloworldOne,helloworldTwo
+> org.springframework.beans.factory.NoUniqueBeanDefinitionException: No qualifying bean of type 'com.xiao.spring6.iocxml.User' available: expected single matching bean but found 2: userOne,userTwo
 
 ##### ⑤扩展知识
 
@@ -659,63 +669,17 @@ java中，instanceof运算符用于判断前面的对象是否是后面的类，
 **①创建学生类Student**
 
 ```java
-package com.atguigu.spring6.bean;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 
-public class Student {
-
-    private Integer id;
+@Data
+@AllArgsConstructor
+@NoArgsConstructor
+public class Book {
 
     private String name;
-
-    private Integer age;
-
-    private String sex;
-
-    public Student() {
-    }
-
-    public Integer getId() {
-        return id;
-    }
-
-    public void setId(Integer id) {
-        this.id = id;
-    }
-
-    public String getName() {
-        return name;
-    }
-
-    public void setName(String name) {
-        this.name = name;
-    }
-
-    public Integer getAge() {
-        return age;
-    }
-
-    public void setAge(Integer age) {
-        this.age = age;
-    }
-
-    public String getSex() {
-        return sex;
-    }
-
-    public void setSex(String sex) {
-        this.sex = sex;
-    }
-
-    @Override
-    public String toString() {
-        return "Student{" +
-                "id=" + id +
-                ", name='" + name + '\'' +
-                ", age=" + age +
-                ", sex='" + sex + '\'' +
-                '}';
-    }
-
+    private String author;
 }
 ```
 
@@ -724,26 +688,33 @@ public class Student {
 spring-di.xml
 
 ```xml
-<bean id="studentOne" class="com.atguigu.spring6.bean.Student">
+<bean id="bookOne" class="com.xiao.spring6.iocxml.di.Book">
     <!-- property标签：通过组件类的setXxx()方法给组件对象设置属性 -->
     <!-- name属性：指定属性名（这个属性名是getXxx()、setXxx()方法定义的，和成员变量无关） -->
     <!-- value属性：指定属性值 -->
-    <property name="id" value="1001"></property>
-    <property name="name" value="张三"></property>
-    <property name="age" value="23"></property>
-    <property name="sex" value="男"></property>
+    <property name="name" value="武动乾坤"></property>
+    <property name="author" value="天蚕土豆"></property>
 </bean>
 ```
 
 **③测试**
 
 ```java
-@Test
-public void testDIBySet(){
-    ApplicationContext ac = new ClassPathXmlApplicationContext("spring-di.xml");
-    Student studentOne = ac.getBean("studentOne", Student.class);
-    System.out.println(studentOne);
+public class TestBook {
+    private ApplicationContext context;
+
+    @BeforeEach
+    void initApplicationContext() {
+        context = new ClassPathXmlApplicationContext("spring-bean.xml");
+    }
+
+    @Test
+    void testDIBySetter() {
+        Book book = context.getBean("bookOne", Book.class);
+        System.out.println(book);
+    }
 }
+
 ```
 
 
@@ -753,11 +724,9 @@ public void testDIBySet(){
 **①在Student类中添加有参构造**
 
 ```java
-public Student(Integer id, String name, Integer age, String sex) {
-    this.id = id;
+public Book(String name, String author) {
     this.name = name;
-    this.age = age;
-    this.sex = sex;
+    this.author = author;
 }
 ```
 
@@ -766,11 +735,9 @@ public Student(Integer id, String name, Integer age, String sex) {
 spring-di.xml
 
 ```xml
-<bean id="studentTwo" class="com.atguigu.spring6.bean.Student">
-    <constructor-arg value="1002"></constructor-arg>
-    <constructor-arg value="李四"></constructor-arg>
-    <constructor-arg value="33"></constructor-arg>
-    <constructor-arg value="女"></constructor-arg>
+<bean id="bookTwo" class="com.xiao.spring6.iocxml.di.Book">
+    <constructor-arg name="name" value="斗罗大陆"></constructor-arg>
+    <constructor-arg name="author" value="唐家三少"></constructor-arg>
 </bean>
 ```
 
@@ -785,10 +752,9 @@ spring-di.xml
 
 ```java
 @Test
-public void testDIByConstructor(){
-    ApplicationContext ac = new ClassPathXmlApplicationContext("spring-di.xml");
-    Student studentOne = ac.getBean("studentTwo", Student.class);
-    System.out.println(studentOne);
+void testDIByConstructor() {
+    Book book = context.getBean("bookTwo", Book.class);
+    System.out.println(book);
 }
 ```
 

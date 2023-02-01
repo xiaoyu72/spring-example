@@ -10,22 +10,7 @@
     <packaging>war</packaging>
     <name>spring6-first</name>
     <url>https://maven.apache.org</url>
-    <dependencies>
-        <!--spring context依赖-->
-        <!--当你引入Spring Context依赖之后，表示将Spring的基础依赖引入了-->
-        <dependency>
-            <groupId>org.springframework</groupId>
-            <artifactId>spring-context</artifactId>
-            <version>6.0.2</version>
-        </dependency>
 
-        <!--junit5测试-->
-        <dependency>
-            <groupId>org.junit.jupiter</groupId>
-            <artifactId>junit-jupiter-api</artifactId>
-            <version>5.3.1</version>
-        </dependency>
-    </dependencies>
     <build>
         <finalName>spring6-first</finalName>
     </build>
